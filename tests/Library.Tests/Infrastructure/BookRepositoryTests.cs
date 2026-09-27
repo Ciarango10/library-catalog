@@ -1,8 +1,5 @@
 using Library.Domain.Entities;
-using Library.Infrastructure.Persistence;
 using Library.Infrastructure.Repositories;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 
 namespace Library.Tests.Infrastructure;
 
@@ -45,54 +42,40 @@ public sealed class BookRepositoryTests
         await using var database = await TestDatabase.CreateAsync();
         var repository = new BookRepository(database.Context);
 
-        var books = await repository.GetByCategoryAsync(2);
-        var missing = await repository.GetByCategoryAsync(999);
+        var (books, totalCount) = await repository.GetByCategoryAsync(2, pageNumber: 1, pageSize: 10);
+        var (missing, missingCount) = await repository.GetByCategoryAsync(999, pageNumber: 1, pageSize: 10);
 
         Assert.Equal(3, books.Count);
+        Assert.Equal(3, totalCount);
         Assert.All(books, book =>
         {
             Assert.Equal(2, book.CategoryId);
             AssertDetailsLoaded(book);
         });
         Assert.Empty(missing);
+        Assert.Equal(0, missingCount);
         Assert.Empty(database.Context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task GetByCategoryAsync_ReturnsOnlyTheRequestedPageOrderedById()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var repository = new BookRepository(database.Context);
+
+        var (firstPage, totalCount) = await repository.GetByCategoryAsync(1, pageNumber: 1, pageSize: 3);
+        var (secondPage, _) = await repository.GetByCategoryAsync(1, pageNumber: 2, pageSize: 3);
+        var (emptyPage, _) = await repository.GetByCategoryAsync(1, pageNumber: 3, pageSize: 3);
+
+        Assert.Equal(4, totalCount);
+        Assert.Equal([1, 2, 3], firstPage.Select(book => book.Id));
+        Assert.Equal([4], secondPage.Select(book => book.Id));
+        Assert.Empty(emptyPage);
     }
 
     private static void AssertDetailsLoaded(Book book)
     {
         Assert.False(string.IsNullOrWhiteSpace(book.Author.Name));
         Assert.False(string.IsNullOrWhiteSpace(book.Category.Name));
-    }
-
-    private sealed class TestDatabase : IAsyncDisposable
-    {
-        private readonly SqliteConnection _connection;
-
-        private TestDatabase(SqliteConnection connection, LibraryDbContext context)
-        {
-            _connection = connection;
-            Context = context;
-        }
-
-        public LibraryDbContext Context { get; }
-
-        public static async Task<TestDatabase> CreateAsync()
-        {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
-            var options = new DbContextOptionsBuilder<LibraryDbContext>()
-                .UseSqlite(connection)
-                .Options;
-            var context = new LibraryDbContext(options);
-            await context.Database.EnsureCreatedAsync();
-            context.ChangeTracker.Clear();
-            return new TestDatabase(connection, context);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await Context.DisposeAsync();
-            await _connection.DisposeAsync();
-        }
     }
 }

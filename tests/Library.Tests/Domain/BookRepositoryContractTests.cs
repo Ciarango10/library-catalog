@@ -11,7 +11,10 @@ public class BookRepositoryContractTests
     {
         AssertQuery(nameof(IBookRepository.GetAllAsync), typeof(Task<IReadOnlyList<Book>>));
         AssertQuery(nameof(IBookRepository.GetByIdAsync), typeof(Task<Book>), typeof(int));
-        AssertQuery(nameof(IBookRepository.GetByCategoryAsync), typeof(Task<IReadOnlyList<Book>>), typeof(int));
+        AssertQuery(
+            nameof(IBookRepository.GetByCategoryAsync),
+            typeof(Task<(IReadOnlyList<Book> Items, int TotalCount)>),
+            typeof(int), typeof(int), typeof(int));
     }
 
     [Fact]
