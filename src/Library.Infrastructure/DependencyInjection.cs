@@ -19,6 +19,7 @@ public static class DependencyInjection
 
         services.AddDbContext<LibraryDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IBookRepository, BookRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
 
         return services;
     }
